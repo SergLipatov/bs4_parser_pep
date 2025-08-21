@@ -4,21 +4,18 @@ from collections import Counter
 from urllib.parse import urljoin
 
 import requests_cache
-from bs4 import BeautifulSoup
 from tqdm import tqdm
 
 from configs import configure_argument_parser, configure_logging
-from constants import BASE_DIR, MAIN_DOC_URL, MAIN_PEPS_URL
+from constants import (MAIN_DOC_URL, MAIN_PEPS_URL, WHATS_NEW_URL,
+                       DOWNLOADS_URL, DOWNLOADS_DIR)
 from outputs import control_output
-from utils import check_status_consistency, find_tag, get_response
+from utils import check_status_consistency, find_tag, prepare_soup
+from exceptions import VersionsNotFoundError
 
 
 def whats_new(session):
-    whats_new_url = urljoin(MAIN_DOC_URL, 'whatsnew/')
-    response = get_response(session, whats_new_url)
-    if response is None:
-        return
-    soup = BeautifulSoup(response.text, features='lxml')
+    soup = prepare_soup(session, WHATS_NEW_URL)
     main_div = find_tag(
         soup,
         'section',
@@ -35,11 +32,8 @@ def whats_new(session):
     for section in tqdm(sections_by_python):
         version_a_tag = find_tag(section, 'a')
         href = version_a_tag['href']
-        version_link = urljoin(whats_new_url, href)
-        response = get_response(session, version_link)
-        if response is None:
-            continue
-        soup = BeautifulSoup(response.text, features='lxml')
+        version_link = urljoin(WHATS_NEW_URL, href)
+        soup = prepare_soup(session, version_link)
         h1 = find_tag(soup, 'h1').text
         dl = find_tag(soup, 'dl').text.replace('\n', ' ')
         result.append((version_link, h1, dl))
@@ -47,10 +41,7 @@ def whats_new(session):
 
 
 def latest_versions(session):
-    response = get_response(session, MAIN_DOC_URL)
-    if response is None:
-        return
-    soup = BeautifulSoup(response.text, features='lxml')
+    soup = prepare_soup(session, MAIN_DOC_URL)
     sidebar = find_tag(
         soup,
         'div',
@@ -62,7 +53,8 @@ def latest_versions(session):
             a_tags = ul.find_all('a')
             break
     else:
-        raise Exception('Ничего не нашлось')
+        raise VersionsNotFoundError('Элемент со списком версий не найден в '
+                                    'боковой панели.')
     results = [('Ссылка на документацию', 'Версия', 'Статус')]
     pattern = r'Python (?P<version>\d\.\d+) \((?P<status>.*)\)'
     for a_tag in a_tags:
@@ -78,22 +70,17 @@ def latest_versions(session):
 
 
 def download(session):
-    downloads_url = urljoin(MAIN_DOC_URL, 'download.html')
-    response = get_response(session, downloads_url)
-    if response is None:
-        return
-    soup = BeautifulSoup(response.text, features='lxml')
+    soup = prepare_soup(session, DOWNLOADS_URL)
     table = find_tag(soup, 'table', attrs={'class': 'docutils'})
     a_tag = find_tag(
         table,
         'a',
         {'href': re.compile(r'.+pdf-a4\.zip$')}
     )
-    url = urljoin(downloads_url, a_tag['href'])
+    url = urljoin(DOWNLOADS_URL, a_tag['href'])
     filename = url.split('/')[-1]
-    downloads_dir = BASE_DIR / 'downloads'
-    downloads_dir.mkdir(exist_ok=True)
-    archive_path = downloads_dir / filename
+    DOWNLOADS_DIR.mkdir(exist_ok=True)
+    archive_path = DOWNLOADS_DIR / filename
     response = session.get(url)
     with open(archive_path, 'wb') as file:
         file.write(response.content)
@@ -101,12 +88,11 @@ def download(session):
 
 
 def pep(session):
-    response = get_response(session, MAIN_PEPS_URL)
-    if response is None:
-        return
-    soup = BeautifulSoup(response.text, features='lxml')
+    soup = prepare_soup(session, MAIN_PEPS_URL)
     tables = soup.find_all('table', attrs={'class': 'pep-zero-table'})
     result_global = [('status', 'status_on_page', 'number', 'title', 'url')]
+    warnings = []
+    errors = []
     for table in tqdm(tables):
         body = find_tag(table, 'tbody')
         all_row = body.find_all('tr')
@@ -117,17 +103,25 @@ def pep(session):
             number = number_col.text
             title = title_href_col.text
             url = urljoin(MAIN_PEPS_URL, title_href_col['href'])
-            response = get_response(session, url)
-            if response is None:
-                return
-            soup = BeautifulSoup(response.text, features='lxml')
+            try:
+                soup = prepare_soup(session, url)
+            except Exception as error:
+                errors.append(f'Ошибка при обработке URL {url}: {error}')
             status_on_page = find_tag(soup, 'abbr').text
-            check_status_consistency(status, status_on_page, url)
+            warning_message = check_status_consistency(status, status_on_page,
+                                                    url)
+            if warning_message:
+                warnings.append(warning_message)
+                warning_message = []
             result_global.append((status, status_on_page, number, title, url))
+    for warning in warnings:
+        logging.warning(warning)
+    for error in errors:
+        logging.error(error)
+
     status_counts = Counter(item[1] for item in result_global[1:])
     result = [('Status', 'Count')]
-    for status, count in status_counts.items():
-        result.append((status, count))
+    result.extend(status_counts.items())
     result.append(('Total', len(result_global) - 1))
     return result
 
@@ -141,19 +135,24 @@ MODE_TO_FUNCTION = {
 
 
 def main():
-    configure_logging()
-    logging.info('Парсер запущен!')
-    arg_parser = configure_argument_parser(MODE_TO_FUNCTION.keys())
-    args = arg_parser.parse_args()
-    logging.info(f'Аргументы командной строки: {args}')
-    session = requests_cache.CachedSession()
-    if args.clear_cache:
-        session.cache.clear()
-    parser_mode = args.mode
-    results = MODE_TO_FUNCTION[parser_mode](session)
-    if results is not None:
-        control_output(results, args)
+    try:
+        configure_logging()
+        logging.info('Парсер запущен!')
+        arg_parser = configure_argument_parser(MODE_TO_FUNCTION.keys())
+        args = arg_parser.parse_args()
+        logging.info(f'Аргументы командной строки: {args}')
+        session = requests_cache.CachedSession()
+        if args.clear_cache:
+            session.cache.clear()
+        parser_mode = args.mode
+        results = MODE_TO_FUNCTION[parser_mode](session)
+        if results is not None:
+            control_output(results, args)
+    except Exception as exception:
+        logging.exception(f'Произошла ошибка: {exception}')
+        return 1
     logging.info('Парсер завершил работу.')
+    return 0
 
 
 if __name__ == '__main__':
