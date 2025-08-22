@@ -36,3 +36,6 @@ EXPECTED_STATUS = {
     'W': ('Withdrawn',),
     '': ('Draft', 'Active'),
 }
+
+# Все возможные названия статусов
+ALL_STATUS_NAMES = list(sum(EXPECTED_STATUS.values(), ()))

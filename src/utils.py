@@ -3,7 +3,7 @@ import logging
 from bs4 import BeautifulSoup
 from requests import RequestException
 
-from constants import EXPECTED_STATUS
+from constants import EXPECTED_STATUS, ALL_STATUS_NAMES
 from exceptions import ParserFindTagException
 
 
@@ -33,21 +33,22 @@ def check_status_consistency(status_code, status_name, url):
             and status_name in EXPECTED_STATUS[status_code]):
         return None
 
-    if status_code in EXPECTED_STATUS:
-        return (f'Несовпадающе статусы:\n{url}\nСтатус в карточке: '
-                f'{status_name}\nОжидаемые статусы: '
+    if (status_code in EXPECTED_STATUS
+            and status_name not in ALL_STATUS_NAMES):
+        return (f'Несовпадающие статусы:\n{url}\nСтатус в карточке: '
+                f'{status_name}\nНесуществующий статус!\nОжидаемые статусы: '
                 f'{EXPECTED_STATUS[status_code]}')
     else:
         valid_codes = [code for code, names in EXPECTED_STATUS.items() if
                        status_name in names]
         if valid_codes:
-            return (f'Несовпадающе статусы:\n{url}\nСтатус в карточке: '
+            return (f'Несовпадающие статусы:\n{url}\nСтатус в карточке: '
                     f'{status_name}\nОжидаемый код статуса: {valid_codes}')
         else:
             return (
-                f'Несуществующий статус:\n{url}\nСтатус в карточке: '
+                f'Несуществующий код статуса:\n{url}\nСтатус в карточке: '
                 f'{status_name}\nИзвестные статусы: '
-                f'{list(sum(EXPECTED_STATUS.values(), ()))}')
+                f'{ALL_STATUS_NAMES}')
 
 
 def prepare_soup(session, url, features='lxml'):
