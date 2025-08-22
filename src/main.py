@@ -37,7 +37,7 @@ def whats_new(session):
         try:
             soup = prepare_soup(session, version_link)
         except ConnectionError as error:
-            errors.append(f'Ошибка при обработке URL {url}: {error}')
+            errors.append(f'Ошибка при обработке URL {version_link}: {error}')
         h1 = find_tag(soup, 'h1').text
         dl = find_tag(soup, 'dl').text.replace('\n', ' ')
         result.append((version_link, h1, dl))
