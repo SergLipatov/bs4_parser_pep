@@ -4,7 +4,7 @@ from bs4 import BeautifulSoup
 from requests import RequestException
 
 from constants import EXPECTED_STATUS
-from exceptions import ParserFindTagException, WebScrapingError
+from exceptions import ParserFindTagException
 
 
 def get_response(session, url, encoding='utf-8'):
@@ -13,7 +13,7 @@ def get_response(session, url, encoding='utf-8'):
         response.encoding = encoding
         return response
     except RequestException:
-        raise Exception(
+        raise ConnectionError(
             f'Возникла ошибка при загрузке страницы {url}',
             stack_info=True
         )
@@ -52,6 +52,4 @@ def check_status_consistency(status_code, status_name, url):
 
 def prepare_soup(session, url, features='lxml'):
     response = get_response(session, url)
-    if response is None:
-        raise WebScrapingError(f'Не удалось получить ответ от URL: {url}')
     return BeautifulSoup(response.text, features)

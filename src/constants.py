@@ -9,6 +9,8 @@ DOWNLOADS_URL = urljoin(MAIN_DOC_URL, 'download.html')
 
 # Базовые пути для работы с файловой системой
 BASE_DIR = Path(__file__).parent
+SUBFOLDER_FOR_DOWNLOADS = 'downloads'
+SUBFOLDER_FOR_RESULTS = 'results'
 LOG_DIR = BASE_DIR / 'logs'
 LOG_FILE = LOG_DIR / 'parser.log'
 

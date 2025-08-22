@@ -7,18 +7,15 @@ import requests_cache
 from tqdm import tqdm
 
 from configs import configure_argument_parser, configure_logging
-from constants import (DOWNLOADS_URL, MAIN_DOC_URL,
-                       MAIN_PEPS_URL, WHATS_NEW_URL, BASE_DIR)
+from constants import (BASE_DIR, DOWNLOADS_URL, MAIN_DOC_URL, MAIN_PEPS_URL,
+                       SUBFOLDER_FOR_DOWNLOADS, WHATS_NEW_URL)
 from exceptions import VersionsNotFoundError
 from outputs import control_output
 from utils import check_status_consistency, find_tag, prepare_soup
 
 
 def whats_new(session):
-    try:
-        soup = prepare_soup(session, WHATS_NEW_URL)
-    except Exception as error:
-        logging.error(error)
+    soup = prepare_soup(session, WHATS_NEW_URL)
     main_div = find_tag(
         soup,
         'section',
@@ -32,22 +29,25 @@ def whats_new(session):
     sections_by_python = div_with_ul.find_all('li', attrs={
         'class': 'toctree-l1'})
     result = [('Ссылка на статью', 'Заголовок', 'Редактор, автор')]
+    errors = []
     for section in tqdm(sections_by_python):
         version_a_tag = find_tag(section, 'a')
         href = version_a_tag['href']
         version_link = urljoin(WHATS_NEW_URL, href)
-        soup = prepare_soup(session, version_link)
+        try:
+            soup = prepare_soup(session, version_link)
+        except ConnectionError as error:
+            errors.append(f'Ошибка при обработке URL {url}: {error}')
         h1 = find_tag(soup, 'h1').text
         dl = find_tag(soup, 'dl').text.replace('\n', ' ')
         result.append((version_link, h1, dl))
+    for error in errors:
+        logging.error(error)
     return result
 
 
 def latest_versions(session):
-    try:
-        soup = prepare_soup(session, MAIN_DOC_URL)
-    except Exception as error:
-        logging.error(error)
+    soup = prepare_soup(session, MAIN_DOC_URL)
     sidebar = find_tag(
         soup,
         'div',
@@ -76,10 +76,7 @@ def latest_versions(session):
 
 
 def download(session):
-    try:
-        soup = prepare_soup(session, DOWNLOADS_URL)
-    except Exception as error:
-        logging.error(error)
+    soup = prepare_soup(session, DOWNLOADS_URL)
     table = find_tag(soup, 'table', attrs={'class': 'docutils'})
     a_tag = find_tag(
         table,
@@ -88,7 +85,7 @@ def download(session):
     )
     url = urljoin(DOWNLOADS_URL, a_tag['href'])
     filename = url.split('/')[-1]
-    DOWNLOADS_DIR = BASE_DIR / 'downloads'
+    DOWNLOADS_DIR = BASE_DIR / SUBFOLDER_FOR_DOWNLOADS
     DOWNLOADS_DIR.mkdir(exist_ok=True)
     archive_path = DOWNLOADS_DIR / filename
     response = session.get(url)
@@ -98,10 +95,7 @@ def download(session):
 
 
 def pep(session):
-    try:
-        soup = prepare_soup(session, MAIN_PEPS_URL)
-    except Exception as error:
-        logging.error(error)
+    soup = prepare_soup(session, MAIN_PEPS_URL)
     tables = soup.find_all('table', attrs={'class': 'pep-zero-table'})
     result_global = [('status', 'status_on_page', 'number', 'title', 'url')]
     warnings = []
@@ -118,7 +112,7 @@ def pep(session):
             url = urljoin(MAIN_PEPS_URL, title_href_col['href'])
             try:
                 soup = prepare_soup(session, url)
-            except Exception as error:
+            except ConnectionError as error:
                 errors.append(f'Ошибка при обработке URL {url}: {error}')
             status_on_page = find_tag(soup, 'abbr').text
             warning_message = check_status_consistency(
@@ -165,9 +159,9 @@ def main():
             control_output(results, args)
     except Exception as exception:
         logging.exception(f'Произошла ошибка: {exception}')
-        return 1
+        return
     logging.info('Парсер завершил работу.')
-    return 0
+    return
 
 
 if __name__ == '__main__':
