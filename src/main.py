@@ -38,6 +38,7 @@ def whats_new(session):
             soup = prepare_soup(session, version_link)
         except ConnectionError as error:
             errors.append(f'Ошибка при обработке URL {version_link}: {error}')
+            continue
         h1 = find_tag(soup, 'h1').text
         dl = find_tag(soup, 'dl').text.replace('\n', ' ')
         result.append((version_link, h1, dl))
@@ -114,6 +115,7 @@ def pep(session):
                 soup = prepare_soup(session, url)
             except ConnectionError as error:
                 errors.append(f'Ошибка при обработке URL {url}: {error}')
+                continue
             status_on_page = find_tag(soup, 'abbr').text
             warning_message = check_status_consistency(
                 status,

@@ -15,19 +15,16 @@ def control_output(results, cli_args):
     }
 
     handler = output_handlers.get(cli_args.output, default_output)
-
-    if handler == file_output:
-        handler(results, cli_args)
-    else:
-        handler(results)
+    handler(results, cli_args)
 
 
-def default_output(results):
+
+def default_output(results, *args):
     for row in results:
         print(*row)
 
 
-def pretty_output(results):
+def pretty_output(results, *args):
     table = PrettyTable()
     table.field_names = results[0]
     table.align = 'l'
