@@ -7,15 +7,18 @@ import requests_cache
 from tqdm import tqdm
 
 from configs import configure_argument_parser, configure_logging
-from constants import (MAIN_DOC_URL, MAIN_PEPS_URL, WHATS_NEW_URL,
-                       DOWNLOADS_URL, DOWNLOADS_DIR)
+from constants import (DOWNLOADS_DIR, DOWNLOADS_URL, MAIN_DOC_URL,
+                       MAIN_PEPS_URL, WHATS_NEW_URL)
+from exceptions import VersionsNotFoundError
 from outputs import control_output
 from utils import check_status_consistency, find_tag, prepare_soup
-from exceptions import VersionsNotFoundError
 
 
 def whats_new(session):
-    soup = prepare_soup(session, WHATS_NEW_URL)
+    try:
+        soup = prepare_soup(session, WHATS_NEW_URL)
+    except Exception as error:
+        logging.error(error)
     main_div = find_tag(
         soup,
         'section',
@@ -41,7 +44,10 @@ def whats_new(session):
 
 
 def latest_versions(session):
-    soup = prepare_soup(session, MAIN_DOC_URL)
+    try:
+        soup = prepare_soup(session, MAIN_DOC_URL)
+    except Exception as error:
+        logging.error(error)
     sidebar = find_tag(
         soup,
         'div',
@@ -70,7 +76,10 @@ def latest_versions(session):
 
 
 def download(session):
-    soup = prepare_soup(session, DOWNLOADS_URL)
+    try:
+        soup = prepare_soup(session, DOWNLOADS_URL)
+    except Exception as error:
+        logging.error(error)
     table = find_tag(soup, 'table', attrs={'class': 'docutils'})
     a_tag = find_tag(
         table,
@@ -88,7 +97,10 @@ def download(session):
 
 
 def pep(session):
-    soup = prepare_soup(session, MAIN_PEPS_URL)
+    try:
+        soup = prepare_soup(session, MAIN_PEPS_URL)
+    except Exception as error:
+        logging.error(error)
     tables = soup.find_all('table', attrs={'class': 'pep-zero-table'})
     result_global = [('status', 'status_on_page', 'number', 'title', 'url')]
     warnings = []
@@ -108,11 +120,13 @@ def pep(session):
             except Exception as error:
                 errors.append(f'Ошибка при обработке URL {url}: {error}')
             status_on_page = find_tag(soup, 'abbr').text
-            warning_message = check_status_consistency(status, status_on_page,
-                                                    url)
+            warning_message = check_status_consistency(
+                status,
+                status_on_page,
+                url
+            )
             if warning_message:
                 warnings.append(warning_message)
-                warning_message = []
             result_global.append((status, status_on_page, number, title, url))
     for warning in warnings:
         logging.warning(warning)

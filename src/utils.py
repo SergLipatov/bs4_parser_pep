@@ -4,7 +4,7 @@ from bs4 import BeautifulSoup
 from requests import RequestException
 
 from constants import EXPECTED_STATUS
-from exceptions import ParserFindTagException
+from exceptions import ParserFindTagException, WebScrapingError
 
 
 def get_response(session, url, encoding='utf-8'):
@@ -35,17 +35,16 @@ def check_status_consistency(status_code, status_name, url):
 
     if status_code in EXPECTED_STATUS:
         return (f'Несовпадающе статусы:\n{url}\nСтатус в карточке: '
-                        f'{status_name}\nОжидаемые статусы: '
-                        f'{EXPECTED_STATUS[status_code]}')
+                f'{status_name}\nОжидаемые статусы: '
+                f'{EXPECTED_STATUS[status_code]}')
     else:
         valid_codes = [code for code, names in EXPECTED_STATUS.items() if
                        status_name in names]
         if valid_codes:
-            return(f'Несовпадающе статусы:\n{url}\nСтатус в карточке: '
-                f'{status_name}\nОжидаемый код статуса: '
-                f'{valid_codes}')
+            return (f'Несовпадающе статусы:\n{url}\nСтатус в карточке: '
+                    f'{status_name}\nОжидаемый код статуса: {valid_codes}')
         else:
-            return(
+            return (
                 f'Несуществующий статус:\n{url}\nСтатус в карточке: '
                 f'{status_name}\nИзвестные статусы: '
                 f'{list(sum(EXPECTED_STATUS.values(), ()))}')
@@ -54,6 +53,5 @@ def check_status_consistency(status_code, status_name, url):
 def prepare_soup(session, url, features='lxml'):
     response = get_response(session, url)
     if response is None:
-        logging.error(f'Нет ответа от URL: {url}')
-        return
+        raise WebScrapingError(f'Не удалось получить ответ от URL: {url}')
     return BeautifulSoup(response.text, features)

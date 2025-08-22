@@ -8,11 +8,11 @@ from constants import DATETIME_FORMAT, RESULTS_DIR
 
 
 def control_output(results, cli_args):
-   output_handlers = {
+    output_handlers = {
         'pretty': lambda: pretty_output(results),
         'file': lambda: file_output(results, cli_args),
     }
-   output_handlers.get(cli_args.output, lambda: default_output(results))()
+    output_handlers.get(cli_args.output, lambda: default_output(results))()
 
 
 def default_output(results):
