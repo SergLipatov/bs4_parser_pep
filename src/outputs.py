@@ -18,7 +18,6 @@ def control_output(results, cli_args):
     handler(results, cli_args)
 
 
-
 def default_output(results, *args):
     for row in results:
         print(*row)
