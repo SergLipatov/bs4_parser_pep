@@ -7,8 +7,8 @@ import requests_cache
 from tqdm import tqdm
 
 from configs import configure_argument_parser, configure_logging
-from constants import (DOWNLOADS_DIR, DOWNLOADS_URL, MAIN_DOC_URL,
-                       MAIN_PEPS_URL, WHATS_NEW_URL)
+from constants import (DOWNLOADS_URL, MAIN_DOC_URL,
+                       MAIN_PEPS_URL, WHATS_NEW_URL, BASE_DIR)
 from exceptions import VersionsNotFoundError
 from outputs import control_output
 from utils import check_status_consistency, find_tag, prepare_soup
@@ -88,6 +88,7 @@ def download(session):
     )
     url = urljoin(DOWNLOADS_URL, a_tag['href'])
     filename = url.split('/')[-1]
+    DOWNLOADS_DIR = BASE_DIR / 'downloads'
     DOWNLOADS_DIR.mkdir(exist_ok=True)
     archive_path = DOWNLOADS_DIR / filename
     response = session.get(url)
